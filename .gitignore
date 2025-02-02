@@ -1,0 +1,7 @@
+# Godot 4+ specific ignores
+.godot/
+/android/
+
+# Project is intended to target the Asset Library; it should not be exporting anything.
+export.cfg
+export_presets.cfg
