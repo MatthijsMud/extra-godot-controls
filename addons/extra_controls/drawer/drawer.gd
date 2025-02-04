@@ -138,3 +138,51 @@ func _calculate_content_area_size() -> Vector2:
 		SIDE_TOP, SIDE_BOTTOM:
 			return Vector2(available_size.x, content_size.y);
 	return Vector2.ZERO;
+
+func _gui_input(event: InputEvent) -> void:
+	match event.get_class():
+		"InputEventScreenTouch":
+			if event.is_pressed():
+				_begin_touch(event);
+			else:
+				_end_touch(event);
+		"InputEventScreenDrag":
+			_touch_move(event);
+			pass
+
+var _is_gesturing: bool = false;
+
+func _begin_touch(event: InputEventScreenTouch) -> void:
+	var area := _calculate_drawer_area();
+	var axis_position := 0.0; 
+	match side:
+		SIDE_LEFT: axis_position = event.position.x - area.end.x;
+		SIDE_RIGHT: axis_position = -(event.position.x - area.position.x);
+		SIDE_TOP: axis_position = event.position.y - area.end.y;
+		SIDE_BOTTOM: axis_position = -(event.position.y - area.position.y);
+		
+	if axis_position < 20:
+		_is_gesturing = true
+
+func _touch_move(event: InputEventScreenDrag) -> void:
+	if not _is_gesturing: return;
+	
+	var size := get_minimum_size();
+	
+	match side:
+		SIDE_LEFT: _openess = clamp(_openess + (event.relative.x / size.x), 0, 1) 
+		SIDE_RIGHT: _openess = clamp(_openess - (event.relative.x / size.x), 0, 1) 
+		SIDE_TOP: _openess = clamp(_openess + (event.relative.y / size.y), 0, 1) 
+		SIDE_BOTTOM: _openess = clamp(_openess - (event.relative.y / size.y), 0, 1) 
+
+func _end_touch(event: InputEventScreenTouch) -> void:
+	if _is_gesturing:
+		_is_gesturing = false;
+		if _openess > 0.5: open(); 
+		else: close();
+		return;
+
+	var area := _calculate_drawer_area();
+	if not area.has_point(event.position):
+		close()
+	pass
