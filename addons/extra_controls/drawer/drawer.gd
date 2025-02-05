@@ -14,6 +14,9 @@ const _closing_duration := 0.2; # seconds
 ## the [class Drawer].
 const _opening_gesture_sensitivity_size := 20;
 
+signal opened();
+signal closed();
+
 @export var side: Side = SIDE_LEFT:
 	get(): return side;
 	set(value): side = value; queue_sort(); queue_redraw();
@@ -67,10 +70,12 @@ func _init():
 func open() -> void:
 	create_tween().tween_property(self, "_openness", 1.0, _opening_duration);
 	mouse_filter = MOUSE_FILTER_PASS;
+	opened.emit();
 
 func close() -> void:
 	create_tween().tween_property(self, "_openness", 0.0, _closing_duration);
 	mouse_filter = MOUSE_FILTER_IGNORE;
+	closed.emit();
 	
 func _enter_tree() -> void:
 	_backdrop_id = RenderingServer.canvas_item_create();
