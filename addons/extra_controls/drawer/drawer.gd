@@ -2,8 +2,17 @@
 @tool
 extends CustomContainer
 class_name Drawer
+## [class Container] which can be opened and closed. It sits at the designated 
+## [member Drawer.side] of the screen.
 
 const CustomContainer := preload("../_shared/custom_container.gd");
+
+const _opening_duration := 0.2; # seconds
+const _closing_duration := 0.2; # seconds
+
+## Distance from the edge of the screen where a user can touch to begin opening/closing
+## the [class Drawer].
+const _opening_gesture_sensitivity_size := 20;
 
 @export var side: Side = SIDE_LEFT:
 	get(): return side;
@@ -18,7 +27,6 @@ const CustomContainer := preload("../_shared/custom_container.gd");
 # materials from eachother. 
 var _backdrop_id: RID;
 
-#region Related to caching theme properties
 var _cached_backdrop_color: Color = Color.TRANSPARENT:
 	get(): return _cached_backdrop_color;
 	set(value): _cached_backdrop_color = value; queue_redraw();
@@ -31,20 +39,13 @@ func _update_theme_cache() -> void:
 	super();
 	_cached_drawer_panel = get_theme_stylebox(&"panel", &"Drawer");
 	_cached_backdrop_color = get_theme_color(&"backdrop", &"Drawer");
-#endregion
 
 ## Value in range (0.0, 1.0). Open is represented by 1, closed by 0.
 var _openness: float = 0:
 	get(): return _openness;
 	set(value): _openness = value; queue_sort(); queue_redraw();
-	
-func open() -> void:
-	create_tween().tween_property(self, "_openness", 1.0, 0.2);
-	mouse_filter = MOUSE_FILTER_PASS;
 
-func close() -> void:
-	create_tween().tween_property(self, "_openness", 0.0, 0.2);
-	mouse_filter = MOUSE_FILTER_IGNORE;
+var _is_gesturing: bool = false;
 
 var _padding: Vector2:
 	get(): return _cached_drawer_panel.get_minimum_size() if _cached_drawer_panel else Vector2.ZERO;
@@ -63,6 +64,14 @@ func _init():
 	# the drawer is closed is undesirable.
 	set_custom_default("mouse_filter", MOUSE_FILTER_IGNORE);
 
+func open() -> void:
+	create_tween().tween_property(self, "_openness", 1.0, _opening_duration);
+	mouse_filter = MOUSE_FILTER_PASS;
+
+func close() -> void:
+	create_tween().tween_property(self, "_openness", 0.0, _closing_duration);
+	mouse_filter = MOUSE_FILTER_IGNORE;
+	
 func _enter_tree() -> void:
 	_backdrop_id = RenderingServer.canvas_item_create();
 	RenderingServer.canvas_item_set_parent(_backdrop_id, get_canvas_item());
@@ -71,7 +80,6 @@ func _enter_tree() -> void:
 func _exit_tree() -> void:
 	RenderingServer.free_rid(_backdrop_id);
 
-#region Related to drawing
 func _draw() -> void:
 	_draw_backdrop();
 	_draw_drawer();
@@ -88,7 +96,6 @@ func _draw_backdrop() -> void:
 
 func _draw_drawer() -> void:
 	draw_style_box(_cached_drawer_panel, _calculate_drawer_area());
-#endregion
 
 func _get_minimum_size() -> Vector2:
 	var result = Vector2.ZERO;
@@ -151,22 +158,23 @@ func _calculate_content_area_size() -> Vector2:
 func _gui_input(event: InputEvent) -> void:
 	match event.get_class():
 		"InputEventScreenTouch":
-			if event.is_pressed():
-				_begin_touch(event);
-			else:
-				_end_touch(event);
+			_handle_touch_event(event);
 		"InputEventScreenDrag":
 			_touch_move(event);
-			pass
 
 func _unhandled_input(event: InputEvent) -> void:
+	# The method [_gui_input] only receives released "InputEventScreenTouch"
+	# if it also first received it when touching has started. If the [Drawer]
+	# was closed when touching started both events get ignored. Hence a slight
+	# code duplication.
 	if event is InputEventScreenTouch:
-		if event.is_pressed():
-			_begin_touch(event);
-		else:
-			_end_touch(event);
+		_handle_touch_event(event);
 
-var _is_gesturing: bool = false;
+func _handle_touch_event(event: InputEventScreenTouch) -> void:
+	if event.is_pressed():
+		_begin_touch(event);
+	else:
+		_end_touch(event);
 
 func _begin_touch(event: InputEventScreenTouch) -> void:
 	var area := _calculate_drawer_area();
@@ -177,7 +185,7 @@ func _begin_touch(event: InputEventScreenTouch) -> void:
 		SIDE_TOP: axis_position = event.position.y - area.end.y;
 		SIDE_BOTTOM: axis_position = -(event.position.y - area.position.y);
 		
-	if axis_position < 20:
+	if axis_position < _opening_gesture_sensitivity_size:
 		_is_gesturing = true
 		mouse_filter = MOUSE_FILTER_PASS;
 
@@ -201,5 +209,4 @@ func _end_touch(event: InputEventScreenTouch) -> void:
 
 	var area := _calculate_drawer_area();
 	if not area.has_point(event.position):
-		close()
-	pass
+		close();
