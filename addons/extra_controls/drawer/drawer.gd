@@ -34,15 +34,17 @@ func _update_theme_cache() -> void:
 #endregion
 
 ## Value in range (0.0, 1.0). Open is represented by 1, closed by 0.
-var _openess: float = 0:
-	get(): return _openess;
-	set(value): _openess = value; queue_sort(); queue_redraw();
+var _openness: float = 0:
+	get(): return _openness;
+	set(value): _openness = value; queue_sort(); queue_redraw();
 	
 func open() -> void:
-	create_tween().tween_property(self, "_openess", 1.0, 0.2);
+	create_tween().tween_property(self, "_openness", 1.0, 0.2);
+	mouse_filter = MOUSE_FILTER_PASS;
 
 func close() -> void:
-	create_tween().tween_property(self, "_openess", 0.0, 0.2);
+	create_tween().tween_property(self, "_openness", 0.0, 0.2);
+	mouse_filter = MOUSE_FILTER_IGNORE;
 
 var _padding: Vector2:
 	get(): return _cached_drawer_panel.get_minimum_size() if _cached_drawer_panel else Vector2.ZERO;
@@ -55,6 +57,11 @@ var _padding_top: float:
 	get(): return _cached_drawer_panel.content_margin_top if _cached_drawer_panel else 0.0;
 var _padding_bottom: float:
 	get(): return _cached_drawer_panel.content_margin_bottom if _cached_drawer_panel else 0.0;
+
+func _init():
+	# Preventing other controls "behind" the drawer from receiving events when
+	# the drawer is closed is undesirable.
+	set_custom_default("mouse_filter", MOUSE_FILTER_IGNORE);
 
 func _enter_tree() -> void:
 	_backdrop_id = RenderingServer.canvas_item_create();
@@ -72,7 +79,7 @@ func _draw() -> void:
 func _draw_backdrop() -> void:
 	# Use same shade for opened and closed backdrop to prevent weird transitions.
 	var invisible_color = Color(_cached_backdrop_color, 0);
-	var effective_color = lerp(invisible_color, _cached_backdrop_color, _openess);
+	var effective_color = lerp(invisible_color, _cached_backdrop_color, _openness);
 	
 	RenderingServer.canvas_item_clear(_backdrop_id);
 	if backdrop_material:
@@ -124,10 +131,10 @@ func _calculate_content_area_offset() -> Vector2:
 	var available_size := size;
 	
 	match side:
-		SIDE_LEFT:   return Vector2(-content_size.x * (1.0 - _openess), 0.0);
-		SIDE_RIGHT:  return Vector2(available_size.x - content_size.x * _openess, 0.0);
-		SIDE_TOP:    return Vector2(0.0, -content_size.y * (1.0 - _openess));
-		SIDE_BOTTOM: return Vector2(0.0, available_size.y - content_size.y * _openess);
+		SIDE_LEFT:   return Vector2(-content_size.x * (1.0 - _openness), 0.0);
+		SIDE_RIGHT:  return Vector2(available_size.x - content_size.x * _openness, 0.0);
+		SIDE_TOP:    return Vector2(0.0, -content_size.y * (1.0 - _openness));
+		SIDE_BOTTOM: return Vector2(0.0, available_size.y - content_size.y * _openness);
 	return Vector2.ZERO;
 
 func _calculate_content_area_size() -> Vector2:
@@ -152,6 +159,13 @@ func _gui_input(event: InputEvent) -> void:
 			_touch_move(event);
 			pass
 
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		if event.is_pressed():
+			_begin_touch(event);
+		else:
+			_end_touch(event);
+
 var _is_gesturing: bool = false;
 
 func _begin_touch(event: InputEventScreenTouch) -> void:
@@ -165,6 +179,7 @@ func _begin_touch(event: InputEventScreenTouch) -> void:
 		
 	if axis_position < 20:
 		_is_gesturing = true
+		mouse_filter = MOUSE_FILTER_PASS;
 
 func _touch_move(event: InputEventScreenDrag) -> void:
 	if not _is_gesturing: return;
@@ -172,15 +187,15 @@ func _touch_move(event: InputEventScreenDrag) -> void:
 	var size := get_minimum_size();
 	
 	match side:
-		SIDE_LEFT: _openess = clamp(_openess + (event.relative.x / size.x), 0, 1) 
-		SIDE_RIGHT: _openess = clamp(_openess - (event.relative.x / size.x), 0, 1) 
-		SIDE_TOP: _openess = clamp(_openess + (event.relative.y / size.y), 0, 1) 
-		SIDE_BOTTOM: _openess = clamp(_openess - (event.relative.y / size.y), 0, 1) 
+		SIDE_LEFT: _openness = clamp(_openness + (event.relative.x / size.x), 0, 1) 
+		SIDE_RIGHT: _openness = clamp(_openness - (event.relative.x / size.x), 0, 1) 
+		SIDE_TOP: _openness = clamp(_openness + (event.relative.y / size.y), 0, 1) 
+		SIDE_BOTTOM: _openness = clamp(_openness - (event.relative.y / size.y), 0, 1) 
 
 func _end_touch(event: InputEventScreenTouch) -> void:
 	if _is_gesturing:
 		_is_gesturing = false;
-		if _openess > 0.5: open(); 
+		if _openness > 0.5: open(); 
 		else: close();
 		return;
 
