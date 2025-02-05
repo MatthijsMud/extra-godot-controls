@@ -75,6 +75,8 @@ func _draw_backdrop() -> void:
 	var effective_color = lerp(invisible_color, _cached_backdrop_color, _openess);
 	
 	RenderingServer.canvas_item_clear(_backdrop_id);
+	if backdrop_material:
+		RenderingServer.canvas_item_set_material(_backdrop_id, backdrop_material.get_rid())
 	RenderingServer.canvas_item_add_rect(_backdrop_id, Rect2(Vector2.ZERO, size), effective_color);
 
 func _draw_drawer() -> void:
